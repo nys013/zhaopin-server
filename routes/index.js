@@ -3,9 +3,12 @@ const express = require('express');
 // 创建路由
 const router = express.Router();
 // 引入数据库的集合：UserModel
-const UserModel = require('../db/models')
+const {UserModel,ChatModel} = require('../db/models')
 // 引入md5加密，用于用户的密码加密
 const md5 = require('blueimp-md5')
+// 查找数据库返回数据的过滤条件（投影）
+const filter = '-password -__v'
+
 
 /* 这个与我们的项目无关，访问根路径时的界面渲染 */
 router.get('/', function(req, res, next) {
@@ -67,6 +70,103 @@ router.post('/login',function(req,res){
       }
     }
   })
+})
+
+// 用户信息更新
+router.post('/update',function(req,res){
+  const {userid} = req.cookies
+  // 先判断cookie中是否存在该用户（即是否登录），直接判断；如果是进入数据库查找，找不到再返回效率低
+  if (!userid) {
+    res.send({code:1,msg:'请先登录'})
+  } else {
+    // 修改用户信息 Model.update直接更新，不用返回数据；Model.findByIdAndUpdate用于返回数据的
+    UserModel.findByIdAndUpdate({_id:userid},req.body,function (err,user) {
+      if (!user) {
+        // 当前cookie有值，但不是对应的，在数据库中找不到，则清除cookie，返回错误信息
+        res.clearCookie('userid')
+        res.send({code:1,msg:'请先登录'})
+      } else {  
+        // 虽然数据库的用户已经更新了，但是我们也要给前台返回，而这里的user是未更新的user，所以需要我们进行处理后返回
+        const {username,type,_id} = user
+        // 即user添加新的req.body里的属性 后台不能用...运算符
+        // 用Object.assign(target,source1,source2,  ...) 注意参数必须是对象！！！
+        const data = Object.assign(req.body,{username,type,_id})
+        console.log(req.body)
+        res.send({code:0,data})
+      }
+    })
+  }
+})
+
+// 获取当前的user(根据cookie中的userid)
+router.get('/user',function (req,res) {
+  const {userid} = req.cookies
+  if (userid) {
+    UserModel.findOne({_id:userid},filter,function(err,user){
+      if(!err){
+        res.send({code:0,data:user})
+      }
+    })
+  } else {
+    res.send({code:1,msg:'请先登录'})
+  }
+})
+
+// 获取用户列表 boss/dashen
+router.get('/userlist',function (req,res) {
+  // api显示传的是query参数 ?type=xxx
+  const {type} = req.query  //其实完全不用传参也可以做到，获取cookie中的type就可以
+  // 从数据库中查找并返回 
+  UserModel.find({type} , filter , function (err,users) {
+    if (!err) {
+      /* if (users.length) {
+        res.send({code:0,data:users})
+      } else {
+        // 几乎不可能吧...没有用户的情况
+        res.send({code:1,msg:'暂时未有用户'})
+      } */
+      // 根据接口文档，统一返回查询到的结果，就算没有返回[]也可
+      res.send({code:0,data:users})
+    }
+  })
+})
+
+// 获取当前用户的聊天消息列表
+router.get('/msglist',function (req,res) {
+  // 获取当前用户id
+  const {userid} = req.cookies
+  // 查找所有用户
+  UserModel.find({},filter,function (err,userDocs) {
+    if(!err){
+      // 将每个user文档处理数据结构后返回 users:{xxxx:{username,header}}
+      const users = userDocs.reduce((pretotal,item) => {
+        pretotal[item._id] = {username:item.username , header:item.header }
+        return pretotal
+      },{})
+      // 在聊天列表找出与当前用户相关的消息列表（发给我的，我发的） filter还是要加的，为了排除__v
+      ChatModel.find({'$or':[{from:userid},{to:userid}]} , filter , function (err,chatMsgs) {
+        if (!err) {
+          // 如无错误，将数据按api接口文档描述发送给客户端
+          res.send({code:0,data:{users , chatMsgs}})
+        }
+      })
+    }
+  })
+})
+
+// 将消息标记为已读
+router.post('/readmsg',function (req,res) {
+  const {from} = req.body
+  const to = req.cookies.userid
+  // 可能更新多个，所以要many，因为update默认只更新一条，查找条件：发给我的，未读的
+  console.log(from,to)
+  ChatModel.updateMany({from , to , read:false} , {read:true}  , function (err,chatMsgs) {
+    if (!err) {
+      // 返回数据为更改的数量，以便前台对小红点的修改
+      res.send({code:0 , data:chatMsgs.nModified})
+    }
+  })
+  
 })
 
 module.exports = router;

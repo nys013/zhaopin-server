@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "blueimp-md5": "^2.13.0",
-    "mongoose": "^5.9.9"
+    "mongoose": "^5.9.9",
+    "socket.io": "^2.3.0"
   }
 }

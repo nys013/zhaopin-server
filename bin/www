@@ -24,6 +24,9 @@ app.set('port', port);
 
 var server = http.createServer(app);
 
+/* 使用socket.io，先引入模块，然后将这里的server传给该函数执行 */
+require('../socket.io/index')(server)
+
 /**
  * Listen on provided port, on all network interfaces.
  */

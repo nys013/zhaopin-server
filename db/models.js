@@ -18,6 +18,8 @@ mongoose.connection.once('connected',function(){
 })
 
 const {Schema , model } = mongoose
+
+/*用户的集合  */
 const userSchema = new Schema({
     username:{type:String,required:true},   //用户名
     password:{type:String,required:true},   //密码
@@ -29,5 +31,16 @@ const userSchema = new Schema({
     salary:String,  //工资
 })
 const UserModel = new model('users' , userSchema)
+module.exports.UserModel = UserModel
 
-module.exports = UserModel
+/* 聊天的集合 */
+const chatSchema = new Schema({
+    from:{type:String,required:true},   //消息的发送者
+    to:{type:String,required:true},     //消息的接受者  
+    chat_id:{type:String,required:true},//发送与接受者组合的id
+    content:{type:String,required:true},//聊天内容   
+    read:{type:Boolean,default:false},   //是否已读
+    create_time:Number  //创建时间
+})
+const ChatModel = new model('chats',chatSchema)
+module.exports.ChatModel = ChatModel
